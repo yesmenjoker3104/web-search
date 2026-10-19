@@ -1,0 +1,23 @@
+{
+  "name": "WebSearch",
+  "version": "0.1.0",
+  "description": "DuckDuckGoでWeb検索し、結果をLLMで要約する",
+  "executable": "WebSearchCli.exe",
+  "actions": [
+    {
+      "action": "web_search",
+      "prompt_hint": "Web検索（最新情報や知らない事柄を調べる）",
+      "prompt_example": { "action": "web_search", "query": "検索語" },
+      "prompt_notes": "検索語は短く具体的にする。最新の出来事や一般的でない事実を聞かれたら使う。",
+      "command": {
+        "subcommands": ["search"],
+        "args": [
+          { "type": "positional", "param": "query", "default": "" }
+        ]
+      },
+      "handler": "plugin",
+      "display": "text",
+      "display_template": "{answer}"
+    }
+  ]
+}

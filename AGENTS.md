@@ -58,7 +58,6 @@ cd web-search
 - 標準ライブラリの `unittest` のみを使います。pytest など新しいパッケージを追加しないでください。
 - 検索（`search_web`）、ページ取得（`fetch_page_text`）、LLM 呼び出し（`ask_llm`）は `unittest.mock` で差し替えてください。テストから実ネットワークに出ないようにします。
 - サブプロセステストは偽の `ddgs.py` を一時ディレクトリに置き、`PYTHONPATH` で読ませています。この方法を維持してください。
-- 既知の不具合は `@unittest.expectedFailure` で記録しています。直したら、このデコレータを外してください。
 
 ## 作業のルール
 

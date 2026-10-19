@@ -53,13 +53,6 @@ class CmdSearchTest(unittest.TestCase):
             result = cli.cmd_search("q", 5)
         self.assertEqual(result, {"ok": False, "error": "検索結果がありませんでした。"})
 
-    @unittest.expectedFailure
-    def test_library_no_results_exception_is_reported_as_no_results(self):
-        # 既知の不具合: ddgs は 0 件のとき例外を投げるため、「検索結果がありませんでした」に到達しない
-        with mock.patch.object(cli, "search_web", side_effect=Exception("No results found.")):
-            result = cli.cmd_search("q", 5)
-        self.assertEqual(result["error"], "検索結果がありませんでした。")
-
     def test_success_builds_prompt_and_returns_stripped_answer(self):
         with mock.patch.object(cli, "search_web", return_value=HITS[:3]), \
              mock.patch.object(cli, "fetch_page_text", return_value="本文テキスト"), \
@@ -115,6 +108,19 @@ class SearchWebTest(unittest.TestCase):
 
         fake.return_value.text.assert_called_once_with("テスト", max_results=2)
         self.assertEqual(result, HITS[:2])
+
+    def test_no_results_exception_becomes_empty_list(self):
+        fake = mock.MagicMock()
+        fake.return_value.text.side_effect = Exception("No results found.")
+        with mock.patch.object(cli, "DDGS", fake):
+            self.assertEqual(cli.search_web("テスト", 2), [])
+
+    def test_other_search_exceptions_still_propagate(self):
+        fake = mock.MagicMock()
+        fake.return_value.text.side_effect = Exception("rate limited")
+        with mock.patch.object(cli, "DDGS", fake):
+            with self.assertRaises(Exception):
+                cli.search_web("テスト", 2)
 
 
 class TextExtractorTest(unittest.TestCase):

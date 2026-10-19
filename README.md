@@ -78,7 +78,6 @@ cd web-search
 
 - **単体テスト**: 検索・ページ取得・LLM 呼び出しを差し替えて、各関数の動作を確認
 - **サブプロセステスト**: CLI を実際に起動し、標準入出力のプロトコルを確認（検索は偽の `ddgs` で代替し、ネットワークには出ません）
-- **既知の不具合**: `expectedFailure` で記録しています。DuckDuckGo が 0 件のとき例外を投げるため、「検索結果がありませんでした」のメッセージに到達しない問題です。
 
 ## バージョン管理
 
@@ -97,11 +96,12 @@ cd web-search
 |---|---|
 | `web-search/websearch_cli.py` | CLI 本体（`__version__` を含む） |
 | `web-search/test_websearch_cli.py` | テスト |
+| `plugin.json` | Assist-Chat 用のプラグイン定義（機械可読な契約） |
 | `pyproject.toml` | プロジェクト情報と依存関係（版番号は CLI から読み込み） |
 | `CHANGELOG.md` | 変更履歴 |
 | `AGENTS.md` | 開発時の注意点（コーディングエージェント向け） |
 
 ## 関連
 
-- プラグインのマニフェスト（`plugin.json`）は、現在 Assist-Chat 側の `plugin/WebSearch/` にあります。exe の配置先はまだ確定していません。
+- プラグインの定義（`plugin.json`）は、このリポジトリで管理します。exe の配置先はまだ確定していません。
 - プラグインの契約（`llm_request` / `llm_response` など）は Assist-Chat の `AGENTS.md` にも記載があります。

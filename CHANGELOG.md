@@ -5,6 +5,14 @@
 
 ## [Unreleased]
 
+### Added
+
+- `plugin.json`（Assist-Chat 用のプラグイン定義）を追加
+
+### Fixed
+
+- DuckDuckGo の検索結果が 0 件のとき、「検索に失敗しました」ではなく「検索結果がありませんでした」を返すように修正
+
 ## [0.1.0] - 2026-10-19
 
 ### Added

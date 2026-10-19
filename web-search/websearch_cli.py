@@ -74,7 +74,13 @@ def fetch_page_text(url: str) -> str:
 
 
 def search_web(query: str, limit: int) -> list[dict]:
-    return list(DDGS().text(query, max_results=limit))
+    try:
+        return list(DDGS().text(query, max_results=limit))
+    except Exception as exc:
+        # ddgs は 0 件のとき例外を投げるので、それだけは「結果なし」として扱う
+        if "No results found" in str(exc):
+            return []
+        raise
 
 
 def cmd_search(query: str, limit: int) -> dict:
