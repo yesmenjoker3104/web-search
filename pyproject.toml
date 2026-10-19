@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "web-search"
+dynamic = ["version"]
+description = "DuckDuckGo で検索し、上位ページを LLM に要約させる WebSearch プラグインの CLI"
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+    "ddgs",
+]
+
+[project.optional-dependencies]
+build = [
+    "pyinstaller",
+]
+
+[tool.setuptools]
+package-dir = { "" = "web-search" }
+py-modules = ["websearch_cli"]
+
+[tool.setuptools.dynamic]
+version = { attr = "websearch_cli.__version__" }
