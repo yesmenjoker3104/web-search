@@ -19,7 +19,7 @@ FETCH_TOP_N = 3
 PAGE_CHAR_LIMIT = 1500
 FETCH_TIMEOUT_SEC = 5
 USER_AGENT = "Mozilla/5.0"
-__version__ = "0.1.0"
+__version__ = "0.1.1"
 
 _request_seq = 0
 

@@ -5,6 +5,8 @@
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-10-20
+
 ### Added
 
 - `plugin.json`（Assist-Chat 用のプラグイン定義）を追加
