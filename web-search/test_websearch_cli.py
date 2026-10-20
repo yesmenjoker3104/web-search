@@ -59,14 +59,23 @@ class CmdSearchTest(unittest.TestCase):
              mock.patch.object(cli, "ask_llm", return_value="  回答です。\n") as ask:
             result = cli.cmd_search("依頼内容", 3)
 
-        self.assertEqual(result, {"ok": True, "answer": "回答です。"})
+        self.assertEqual(result["ok"], True)
+        self.assertTrue(result["answer"].startswith("回答です。\n\n出典:\n"))
         prompt = ask.call_args.args[0]
         self.assertIn("依頼内容", prompt)
         for hit in HITS[:3]:
             self.assertIn(hit["title"], prompt)
             self.assertIn(hit["href"], prompt)
             self.assertIn(hit["body"], prompt)
+            self.assertIn(hit["href"], result["answer"])
         self.assertIn("本文: 本文テキスト", prompt)
+
+    def test_sources_are_added_on_their_own_lines(self):
+        hits = [{"title": "タイトル\n改行あり", "href": "https://example.com/a", "body": ""}]
+        self.assertEqual(
+            cli.format_sources(hits),
+            "出典:\n[1] タイトル 改行あり\nhttps://example.com/a",
+        )
 
     def test_only_top_hits_are_fetched(self):
         with mock.patch.object(cli, "search_web", return_value=HITS), \
@@ -328,7 +337,10 @@ class ScriptProtocolTest(unittest.TestCase):
         self.assertIn("テスト記事", request["prompt"])
         self.assertIn("概要テキスト", request["prompt"])
         self.assertEqual(code, 0)
-        self.assertEqual(json.loads(rest.strip()), {"ok": True, "answer": "要約結果"})
+        reply = json.loads(rest.strip())
+        self.assertEqual(reply["ok"], True)
+        self.assertTrue(reply["answer"].startswith("要約結果\n\n出典:\n"))
+        self.assertIn("http://127.0.0.1:9/", reply["answer"])
 
     def test_llm_error_reply_exits_one(self):
         _, code, rest = self._run_script(["search", "テスト依頼"], {"error": "モデル未接続"})

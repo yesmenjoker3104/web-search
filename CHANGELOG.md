@@ -3,7 +3,11 @@
 このプロジェクトの変更履歴です。
 書式は [Keep a Changelog](https://keepachangelog.com/ja/1.1.0/) に、バージョンは [Semantic Versioning](https://semver.org/lang/ja/) に従います。
 
-## [Unreleased]
+## [0.1.3] - Unreleased
+
+### Fixed
+
+- 回答の出典 URL を、LLM の出力に頼らず検索結果から付けるように変更（アプリ上でクリックできるリンクになる）
 
 ## [0.1.2] - 2026-10-20
 

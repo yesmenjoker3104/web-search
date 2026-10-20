@@ -19,7 +19,7 @@ FETCH_TOP_N = 3
 PAGE_CHAR_LIMIT = 1500
 FETCH_TIMEOUT_SEC = 5
 USER_AGENT = "Mozilla/5.0"
-__version__ = "0.1.2"
+__version__ = "0.1.3"
 
 _request_seq = 0
 
@@ -139,15 +139,24 @@ def cmd_search(query: str, limit: int) -> dict:
     prompt = (
         f"以下はWeb検索の結果です。依頼: {query}\n"
         "結果に書かれている内容だけを基に、日本語で簡潔に答えてください。"
-        "結果に無い内容は推測しないでください。"
-        "最後に根拠にしたURLを箇条書きで付けてください。\n\n"
+        "結果に無い内容は推測しないでください。\n\n"
         + "\n\n".join(blocks)
     )
     try:
         answer = ask_llm(prompt)
     except Exception as exc:
         return {"ok": False, "error": f"要約に失敗しました: {exc}"}
-    return {"ok": True, "answer": answer.strip()}
+    return {"ok": True, "answer": answer.strip() + "\n\n" + format_sources(hits)}
+
+
+def format_sources(hits: list[dict]) -> str:
+    # URL は単独の行に置く。アプリ側でクリックできるリンクになり、句読点も混ざらない。
+    lines = ["出典:"]
+    for i, hit in enumerate(hits, start=1):
+        title = " ".join(str(hit.get("title", "")).split()) or "無題"
+        lines.append(f"[{i}] {title}")
+        lines.append(hit.get("href", ""))
+    return "\n".join(lines)
 
 
 class _ArgumentParser(argparse.ArgumentParser):
