@@ -19,7 +19,7 @@ FETCH_TOP_N = 3
 PAGE_CHAR_LIMIT = 1500
 FETCH_TIMEOUT_SEC = 5
 USER_AGENT = "Mozilla/5.0"
-__version__ = "0.1.1"
+__version__ = "0.1.2"
 
 _request_seq = 0
 
@@ -94,14 +94,25 @@ def fetch_top_pages(hits: list[dict]) -> dict[int, str]:
     return pages
 
 
-def search_web(query: str, limit: int) -> list[dict]:
+def _search_once(query: str, limit: int, region: str) -> list[dict]:
     try:
-        return list(DDGS().text(query, max_results=limit))
+        hits = list(DDGS().text(query, max_results=limit, region=region))
     except Exception as exc:
         # ddgs は 0 件のとき例外を投げるので、それだけは「結果なし」として扱う
         if "No results found" in str(exc):
             return []
         raise
+    # URL が空の結果は要約に使えないので除外する
+    return [hit for hit in hits if hit.get("href")]
+
+
+def search_web(query: str, limit: int) -> list[dict]:
+    # 日本語の検索語は既定の地域だと、中身が空の結果しか返らないことがある。
+    # その場合だけ日本の地域で検索し直す。
+    hits = _search_once(query, limit, "wt-wt")
+    if not hits:
+        hits = _search_once(query, limit, "jp-jp")
+    return hits
 
 
 def cmd_search(query: str, limit: int) -> dict:

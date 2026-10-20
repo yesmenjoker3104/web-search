@@ -26,11 +26,11 @@ HITS = [
     {"title": "記事5", "href": "https://example.com/5", "body": "概要5"},
 ]
 
-# 実ネットワークに出ないよう、href を空にして取得を即失敗させる
+# 実ネットワークに出ないよう、閉じたローカルポートを指して取得を即失敗させる
 FAKE_DDGS = textwrap.dedent('''
     class DDGS:
-        def text(self, query, max_results=10):
-            return [{"title": "テスト記事", "href": "", "body": "概要テキスト"}][:max_results]
+        def text(self, query, max_results=10, region=None):
+            return [{"title": "テスト記事", "href": "http://127.0.0.1:9/", "body": "概要テキスト"}][:max_results]
 ''')
 
 
@@ -122,8 +122,29 @@ class SearchWebTest(unittest.TestCase):
         with mock.patch.object(cli, "DDGS", fake):
             result = cli.search_web("テスト", 2)
 
-        fake.return_value.text.assert_called_once_with("テスト", max_results=2)
+        fake.return_value.text.assert_called_once_with("テスト", max_results=2, region="wt-wt")
         self.assertEqual(result, HITS[:2])
+
+    def test_retries_with_japan_region_when_default_hits_are_blank(self):
+        blank = [{"title": "", "href": "", "body": ""}]
+        fake = mock.MagicMock()
+        fake.return_value.text.side_effect = [iter(blank), iter(HITS[:2])]
+        with mock.patch.object(cli, "DDGS", fake):
+            result = cli.search_web("ウクライナ", 2)
+
+        calls = fake.return_value.text.call_args_list
+        self.assertEqual([c.kwargs["region"] for c in calls], ["wt-wt", "jp-jp"])
+        self.assertEqual(result, HITS[:2])
+
+    def test_blank_hits_are_dropped(self):
+        mixed = [{"title": "", "href": "", "body": ""}, HITS[0]]
+        fake = mock.MagicMock()
+        fake.return_value.text.return_value = iter(mixed)
+        with mock.patch.object(cli, "DDGS", fake):
+            result = cli.search_web("テスト", 2)
+
+        self.assertEqual(result, [HITS[0]])
+        self.assertEqual(fake.return_value.text.call_count, 1)
 
     def test_no_results_exception_becomes_empty_list(self):
         fake = mock.MagicMock()

@@ -1,6 +1,6 @@
 {
   "name": "WebSearch",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "DuckDuckGoでWeb検索し、結果をLLMで要約する",
   "executable": "WebSearchCli.exe",
   "actions": [
