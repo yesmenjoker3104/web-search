@@ -3,6 +3,7 @@
 stdout には制御行と最終 JSON だけを出す。ログは stderr へ出すこと。
 """
 import argparse
+import concurrent.futures
 import html.parser
 import json
 import sys
@@ -73,6 +74,26 @@ def fetch_page_text(url: str) -> str:
     return " ".join(parser.parts)[:PAGE_CHAR_LIMIT]
 
 
+def fetch_top_pages(hits: list[dict]) -> dict[int, str]:
+    """上位ページを並列取得し、取得できた本文を検索順位で返す。"""
+    top_hits = hits[:FETCH_TOP_N]
+    if not top_hits:
+        return {}
+
+    pages = {}
+    with concurrent.futures.ThreadPoolExecutor(max_workers=len(top_hits)) as executor:
+        futures = {
+            executor.submit(fetch_page_text, hit.get("href", "")): index
+            for index, hit in enumerate(top_hits)
+        }
+        for future, index in futures.items():
+            try:
+                pages[index] = future.result()
+            except Exception:
+                pass  # 取得できないページは概要だけで扱う
+    return pages
+
+
 def search_web(query: str, limit: int) -> list[dict]:
     try:
         return list(DDGS().text(query, max_results=limit))
@@ -93,17 +114,15 @@ def cmd_search(query: str, limit: int) -> dict:
     if not hits:
         return {"ok": False, "error": "検索結果がありませんでした。"}
 
+    page_texts = fetch_top_pages(hits)
     blocks = []
     for i, hit in enumerate(hits, start=1):
         title = hit.get("title", "")
         url = hit.get("href", "")
         snippet = hit.get("body", "")
         block = f"[{i}] {title}\nURL: {url}\n概要: {snippet}"
-        if i <= FETCH_TOP_N:
-            try:
-                block += f"\n本文: {fetch_page_text(url)}"
-            except Exception:
-                pass  # 取得できないページは概要だけで扱う
+        if i - 1 in page_texts:
+            block += f"\n本文: {page_texts[i - 1]}"
         blocks.append(block)
 
     prompt = (
@@ -120,14 +139,23 @@ def cmd_search(query: str, limit: int) -> dict:
     return {"ok": True, "answer": answer.strip()}
 
 
+class _ArgumentParser(argparse.ArgumentParser):
+    def error(self, message):
+        raise ValueError(message)
+
+
 def main() -> int:
-    parser = argparse.ArgumentParser(prog="WebSearchCli")
+    parser = _ArgumentParser(prog="WebSearchCli")
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     sub = parser.add_subparsers(dest="cmd", required=True)
     search = sub.add_parser("search")
     search.add_argument("query")
     search.add_argument("--limit", type=int, default=RESULT_LIMIT)
-    args = parser.parse_args()
+    try:
+        args = parser.parse_args()
+    except ValueError as exc:
+        emit({"ok": False, "error": f"引数エラー: {exc}"})
+        return 1
 
     limit = max(1, min(args.limit, RESULT_LIMIT))
     result = cmd_search(args.query, limit)

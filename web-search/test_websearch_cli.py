@@ -88,6 +88,22 @@ class CmdSearchTest(unittest.TestCase):
         self.assertIn("概要: 概要1", prompt)
         self.assertNotIn("本文:", prompt)
 
+    def test_fetch_failure_does_not_prevent_other_pages(self):
+        def fetch(url):
+            if url.endswith("/1"):
+                raise OSError("timeout")
+            return "本文2"
+
+        with mock.patch.object(cli, "search_web", return_value=HITS[:2]), \
+             mock.patch.object(cli, "fetch_page_text", side_effect=fetch), \
+             mock.patch.object(cli, "ask_llm", return_value="ok") as ask:
+            result = cli.cmd_search("q", 2)
+
+        self.assertTrue(result["ok"])
+        prompt = ask.call_args.args[0]
+        self.assertNotIn("本文: 本文1", prompt)
+        self.assertIn("本文: 本文2", prompt)
+
     def test_llm_failure_is_reported(self):
         with mock.patch.object(cli, "search_web", return_value=HITS[:1]), \
              mock.patch.object(cli, "fetch_page_text", return_value="x"), \
@@ -245,6 +261,18 @@ class MainTest(unittest.TestCase):
             with self.subTest(raw=raw):
                 _, cmd, _ = self._main(["search", "q", "--limit", raw])
                 cmd.assert_called_once_with("q", expected)
+
+    def test_argument_error_prints_json_and_exits_one(self):
+        out = io.StringIO()
+        with mock.patch.object(cli.sys, "argv", ["WebSearchCli", "search", "q", "--limit", "invalid"]), \
+             redirect_stdout(out):
+            code = cli.main()
+
+        self.assertEqual(code, 1)
+        self.assertEqual(
+            json.loads(out.getvalue()),
+            {"ok": False, "error": "引数エラー: argument --limit: invalid int value: 'invalid'"},
+        )
 
 
 class ScriptProtocolTest(unittest.TestCase):

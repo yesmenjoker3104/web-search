@@ -19,6 +19,9 @@ LLM を直接呼び出すのではなく、ホストに依頼する点がポイ�
 
 ## セットアップ
 
+以下のコマンドは、リポジトリのルート（`web-search`）で実行します。
+CLI 本体とテストが入っている内側の `web-search` はソースディレクトリです。
+
 ```powershell
 cd web-search
 python -m venv .venv
@@ -59,8 +62,7 @@ CLI は次の形式で動きます。
 Assist-Chat のプラグインとして配布するため、PyInstaller で単一の exe にします。
 
 ```powershell
-cd web-search
-.\.venv\Scripts\pyinstaller.exe --onefile --name WebSearchCli websearch_cli.py
+.\.venv\Scripts\pyinstaller.exe --onefile --name WebSearchCli web-search\websearch_cli.py
 ```
 
 成果物は `dist\WebSearchCli.exe` に出ます。`build/`、`dist/`、`*.spec` は `.gitignore` で除外されています。
@@ -70,11 +72,12 @@ cd web-search
 標準ライブラリの `unittest` を使っています。追加のパッケージは不要です。
 
 ```powershell
-cd web-search
-.\.venv\Scripts\python.exe -m unittest -v test_websearch_cli
+Push-Location web-search
+..\.venv\Scripts\python.exe -m unittest -v test_websearch_cli
+Pop-Location
 ```
 
-テストは次の 3 種類です。
+テストは次の 2 種類です。
 
 - **単体テスト**: 検索・ページ取得・LLM 呼び出しを差し替えて、各関数の動作を確認
 - **サブプロセステスト**: CLI を実際に起動し、標準入出力のプロトコルを確認（検索は偽の `ddgs` で代替し、ネットワークには出ません）
@@ -88,7 +91,7 @@ cd web-search
   - 不具合修正は、パッチを上げます。
 - 変更内容は `CHANGELOG.md` の `[Unreleased]` に書き、リリース時に版番号と日付を付けます。
 - リリースは `v<バージョン>` のタグで行います（例: `v0.1.0`）。
-- 確認は `.\.venv\Scripts\python.exe websearch_cli.py --version` で行います。
+- 確認は `.\.venv\Scripts\python.exe web-search\websearch_cli.py --version` で行います。
 
 ## ファイル構成
 
