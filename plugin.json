@@ -1,18 +1,33 @@
 {
   "name": "WebSearch",
-  "version": "0.1.3",
-  "description": "DuckDuckGoでWeb検索し、結果をLLMで要約する",
+  "version": "0.2.0",
+  "description": "DuckDuckGoでWeb検索し、結果をLLMで要約する。指定されたURLのページを読んで要約する",
   "executable": "WebSearchCli.exe",
   "actions": [
     {
       "action": "web_search",
       "prompt_hint": "Web検索（最新情報や知らない事柄を調べる）",
       "prompt_example": { "action": "web_search", "query": "検索語" },
-      "prompt_notes": "検索語は短く具体的にする。最新の出来事や一般的でない事実を聞かれたら使う。",
+      "prompt_notes": "検索語は短く具体的にする。最新の出来事や一般的でない事実を聞かれたら使う。依頼文にURLが含まれる場合は使わず web_fetch を使う。",
       "command": {
         "subcommands": ["search"],
         "args": [
           { "type": "positional", "param": "query", "default": "" }
+        ]
+      },
+      "handler": "plugin",
+      "display": "text",
+      "display_template": "{answer}"
+    },
+    {
+      "action": "web_fetch",
+      "prompt_hint": "指定されたURLのWebページを読んで要約する（ユーザーがhttp/httpsのURLを示し、その内容を知りたい・要約してほしいとき）",
+      "prompt_example": { "action": "web_fetch", "url": "https://example.com/page" },
+      "prompt_notes": "URLは依頼文に書かれたものをそのまま使う。動画のダウンロードなど、URLを使って別の操作をする依頼には使わない。",
+      "command": {
+        "subcommands": ["fetch"],
+        "args": [
+          { "type": "positional", "param": "url", "default": "" }
         ]
       },
       "handler": "plugin",

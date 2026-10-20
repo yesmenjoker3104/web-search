@@ -3,7 +3,16 @@
 このプロジェクトの変更履歴です。
 書式は [Keep a Changelog](https://keepachangelog.com/ja/1.1.0/) に、バージョンは [Semantic Versioning](https://semver.org/lang/ja/) に従います。
 
-## [0.1.3] - Unreleased
+## [0.2.0] - 2026-10-20
+
+### Added
+
+- `fetch` サブコマンドと `web_fetch` アクション: 指定された http(s) の URL のページを読んで要約する
+  - `<article>` / `<main>` があればその中の本文を優先し、ナビゲーションや脚注の多くを除外する
+  - 本文は 4000 字まで（ホストの LLM の文脈長に収まるように）
+  - 出典として、ページのタイトルと URL を表示する
+
+## [0.1.3] - 2026-10-20
 
 ### Fixed
 

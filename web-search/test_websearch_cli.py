@@ -248,6 +248,91 @@ class AskLlmTest(unittest.TestCase):
                 cli.ask_llm("質問")
 
 
+class ArticleExtractorTest(unittest.TestCase):
+    def _extract(self, html_text):
+        parser = cli._ArticleExtractor()
+        parser.feed(html_text)
+        return parser.title.strip(), " ".join(parser.main_parts or parser.parts)
+
+    def test_prefers_main_content_over_navigation(self):
+        page = ("<html><body><nav>メニュー</nav><main><p>本文</p></main>"
+                "<footer>フッター</footer></body></html>")
+        self.assertEqual(self._extract(page)[1], "本文")
+
+    def test_falls_back_to_body_without_main_or_article(self):
+        page = "<html><body><nav>メニュー</nav><div>本文</div><aside>関連</aside></body></html>"
+        self.assertEqual(self._extract(page)[1], "本文")
+
+    def test_captures_title(self):
+        page = "<html><head><title> テスト記事 </title></head><body><p>本文</p></body></html>"
+        self.assertEqual(self._extract(page)[0], "テスト記事")
+
+
+class FetchCommandTest(unittest.TestCase):
+    def test_rejects_non_http_urls_without_network(self):
+        for url in ["ウクライナ", "file:///etc/passwd", "ftp://example.com/a", "https://"]:
+            with self.subTest(url=url), \
+                 mock.patch.object(cli, "fetch_article") as fetch:
+                result = cli.cmd_fetch(url)
+                self.assertFalse(result["ok"])
+                fetch.assert_not_called()
+
+    def test_summarizes_page_and_lists_source(self):
+        with mock.patch.object(cli, "fetch_article", return_value=("記事", "本文テキスト")), \
+             mock.patch.object(cli, "ask_llm", return_value="要約です") as ask:
+            result = cli.cmd_fetch("https://example.com/a")
+
+        self.assertTrue(result["ok"])
+        self.assertIn("要約です", result["answer"])
+        self.assertIn("出典:", result["answer"])
+        self.assertIn("https://example.com/a", result["answer"].splitlines())
+        prompt = ask.call_args.args[0]
+        self.assertIn("本文テキスト", prompt)
+        self.assertIn("推測しない", prompt)
+
+    def test_fetch_failure_is_reported(self):
+        with mock.patch.object(cli, "fetch_article", side_effect=OSError("timeout")), \
+             mock.patch.object(cli, "ask_llm") as ask:
+            result = cli.cmd_fetch("https://example.com/a")
+
+        self.assertFalse(result["ok"])
+        self.assertIn("ページを取得できませんでした", result["error"])
+        ask.assert_not_called()
+
+    def test_empty_page_is_reported(self):
+        with mock.patch.object(cli, "fetch_article", return_value=("", "  ")), \
+             mock.patch.object(cli, "ask_llm") as ask:
+            result = cli.cmd_fetch("https://example.com/a")
+
+        self.assertFalse(result["ok"])
+        ask.assert_not_called()
+
+    def test_summary_failure_is_reported(self):
+        with mock.patch.object(cli, "fetch_article", return_value=("記事", "本文")), \
+             mock.patch.object(cli, "ask_llm", side_effect=RuntimeError("モデル未接続")):
+            result = cli.cmd_fetch("https://example.com/a")
+
+        self.assertFalse(result["ok"])
+        self.assertIn("モデル未接続", result["error"])
+
+    def test_article_text_is_limited(self):
+        body = "<main><p>" + "a" * 9000 + "</p></main>"
+        with mock.patch.object(cli, "_read_html", return_value=body):
+            _, text = cli.fetch_article("https://example.com/a")
+        self.assertEqual(len(text), cli.ARTICLE_CHAR_LIMIT)
+
+    def test_fetch_subcommand_dispatches_to_cmd_fetch(self):
+        out = io.StringIO()
+        with mock.patch.object(cli.sys, "argv", ["WebSearchCli", "fetch", "https://example.com/a"]), \
+             mock.patch.object(cli, "cmd_fetch", return_value={"ok": True, "answer": "回答"}) as cmd, \
+             redirect_stdout(out):
+            code = cli.main()
+
+        self.assertEqual(code, 0)
+        cmd.assert_called_once_with("https://example.com/a")
+        self.assertEqual(json.loads(out.getvalue()), {"ok": True, "answer": "回答"})
+
+
 class MainTest(unittest.TestCase):
     def _main(self, argv, result=None):
         out = io.StringIO()

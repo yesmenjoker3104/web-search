@@ -7,6 +7,7 @@ import concurrent.futures
 import html.parser
 import json
 import sys
+import urllib.parse
 import urllib.request
 
 try:
@@ -18,8 +19,11 @@ RESULT_LIMIT = 20
 FETCH_TOP_N = 3
 PAGE_CHAR_LIMIT = 1500
 FETCH_TIMEOUT_SEC = 5
+# URL を直接読むときの上限。ホストの LLM は文脈長が短いため、本文はこの長さに抑える。
+ARTICLE_CHAR_LIMIT = 4000
+ARTICLE_READ_BYTES = 2 * 1024 * 1024
 USER_AGENT = "Mozilla/5.0"
-__version__ = "0.1.3"
+__version__ = "0.2.0"
 
 _request_seq = 0
 
@@ -65,13 +69,65 @@ class _TextExtractor(html.parser.HTMLParser):
 
 
 def fetch_page_text(url: str) -> str:
+    return _extract_text(_read_html(url, 512 * 1024))[:PAGE_CHAR_LIMIT]
+
+
+def _extract_text(html_text: str) -> str:
+    parser = _TextExtractor()
+    parser.feed(html_text)
+    return " ".join(parser.parts)
+
+
+class _ArticleExtractor(_TextExtractor):
+    """本文らしい部分を取り出す。<article>/<main> があればその中だけを優先する。"""
+
+    SKIP_TAGS = _TextExtractor.SKIP_TAGS | {"nav", "header", "footer", "aside", "form"}
+    MAIN_TAGS = {"article", "main"}
+
+    def __init__(self):
+        super().__init__()
+        self.main_parts: list[str] = []
+        self.title = ""
+        self._main_depth = 0
+        self._in_title = False
+
+    def handle_starttag(self, tag, attrs):
+        super().handle_starttag(tag, attrs)
+        if tag in self.MAIN_TAGS:
+            self._main_depth += 1
+        elif tag == "title":
+            self._in_title = True
+
+    def handle_endtag(self, tag):
+        super().handle_endtag(tag)
+        if tag in self.MAIN_TAGS and self._main_depth:
+            self._main_depth -= 1
+        elif tag == "title":
+            self._in_title = False
+
+    def handle_data(self, data):
+        if self._in_title:
+            self.title += data
+        super().handle_data(data)
+        if self._main_depth and not self._skip_depth and data.strip():
+            self.main_parts.append(data.strip())
+
+
+def _read_html(url: str, max_bytes: int) -> str:
     req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
     with urllib.request.urlopen(req, timeout=FETCH_TIMEOUT_SEC) as res:
-        raw = res.read(512 * 1024)
+        raw = res.read(max_bytes)
         charset = res.headers.get_content_charset() or "utf-8"
-    parser = _TextExtractor()
-    parser.feed(raw.decode(charset, errors="replace"))
-    return " ".join(parser.parts)[:PAGE_CHAR_LIMIT]
+    return raw.decode(charset, errors="replace")
+
+
+def fetch_article(url: str) -> tuple[str, str]:
+    """URL のページからタイトルと本文を取り出す。本文は ARTICLE_CHAR_LIMIT 字まで。"""
+    parser = _ArticleExtractor()
+    parser.feed(_read_html(url, ARTICLE_READ_BYTES))
+    text = " ".join(parser.main_parts or parser.parts)
+    return parser.title.strip(), text[:ARTICLE_CHAR_LIMIT]
+
 
 
 def fetch_top_pages(hits: list[dict]) -> dict[int, str]:
@@ -149,6 +205,36 @@ def cmd_search(query: str, limit: int) -> dict:
     return {"ok": True, "answer": answer.strip() + "\n\n" + format_sources(hits)}
 
 
+def is_http_url(url: str) -> bool:
+    parts = urllib.parse.urlsplit(url)
+    return parts.scheme in ("http", "https") and bool(parts.netloc)
+
+
+def cmd_fetch(url: str) -> dict:
+    url = url.strip()
+    if not is_http_url(url):
+        return {"ok": False, "error": "http または https で始まるURLを指定してください。"}
+    try:
+        title, text = fetch_article(url)
+    except Exception as exc:
+        return {"ok": False, "error": f"ページを取得できませんでした: {exc}"}
+    if not text.strip():
+        return {"ok": False, "error": "ページから本文を取り出せませんでした。"}
+
+    prompt = (
+        f"以下はWebページの本文です。ページ: {title or url}\n\n"
+        f"{text}\n\n"
+        "上の本文の内容を、日本語で簡潔に要約してください。"
+        "本文に書かれていない内容は推測しないでください。"
+    )
+    try:
+        answer = ask_llm(prompt)
+    except Exception as exc:
+        return {"ok": False, "error": f"要約に失敗しました: {exc}"}
+    source = [{"title": title or url, "href": url}]
+    return {"ok": True, "answer": answer.strip() + "\n\n" + format_sources(source)}
+
+
 def format_sources(hits: list[dict]) -> str:
     # URL は単独の行に置く。アプリ側でクリックできるリンクになり、句読点も混ざらない。
     lines = ["出典:"]
@@ -171,14 +257,19 @@ def main() -> int:
     search = sub.add_parser("search")
     search.add_argument("query")
     search.add_argument("--limit", type=int, default=RESULT_LIMIT)
+    fetch = sub.add_parser("fetch")
+    fetch.add_argument("url")
     try:
         args = parser.parse_args()
     except ValueError as exc:
         emit({"ok": False, "error": f"引数エラー: {exc}"})
         return 1
 
-    limit = max(1, min(args.limit, RESULT_LIMIT))
-    result = cmd_search(args.query, limit)
+    if args.cmd == "fetch":
+        result = cmd_fetch(args.url)
+    else:
+        limit = max(1, min(args.limit, RESULT_LIMIT))
+        result = cmd_search(args.query, limit)
     emit(result)
     return 0 if result.get("ok") else 1
 
